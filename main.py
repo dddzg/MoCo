@@ -56,7 +56,7 @@ def get_model(model_name='resnet18'):
         for param in model_k.parameters():
             param.requires_grad = False
 
-        device_list = [config.GPU_ID] * 4
+        device_list = [config.GPU_ID] * 4  # Shuffle BN can be applied through there is only one gpu.
         model_q = torch.nn.DataParallel(model_q, device_ids=device_list)
         model_k = torch.nn.DataParallel(model_k, device_ids=device_list)
 
@@ -91,10 +91,10 @@ def train(train_dataloader, model_q, model_k, queue, optimizer, device, t=0.07):
     for i, (img_q, img_k, _) in enumerate(tqdm(train_dataloader)):
         if queue is not None and queue.shape[0] == config.QUEUE_LENGTH:
             img_q, img_k = img_q.to(device), img_k.to(device)
-            shuffle_idx, reverse_idx = get_shuffle_idx(config.BATCH_SIZE, device)
             q = model_q(img_q)  # N x C
 
             # shuffle BN
+            shuffle_idx, reverse_idx = get_shuffle_idx(config.BATCH_SIZE, device)
             img_k = img_k[shuffle_idx]
             k = model_k(img_k)  # N x C
             k = k[reverse_idx].detach()  # reverse and no graident to key
