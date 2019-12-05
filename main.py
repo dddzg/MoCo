@@ -8,6 +8,7 @@ from tqdm import tqdm
 from torch.nn import functional as F
 import types
 from utils import AverageMeter, get_shuffle_idx
+import os
 
 
 # torch.nn.BatchNorm1d
@@ -17,20 +18,25 @@ def parse_option():
 
 def get_transform(image_size, mean, std, mode='train'):
     if mode == 'train':
-        return transforms.Compose([
-            transforms.RandomResizedCrop(image_size, scale=(0.3, 1.0), ratio=(0.7, 1.4),
-                                         interpolation=3),
-            transforms.RandomApply([
-                transforms.ColorJitter(0.4, 0.4, 0.4, 0.2)], p=0.8),
-            transforms.RandomHorizontalFlip(),
-            transforms.RandomGrayscale(p=0.25),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=mean, std=std)
-        ])
+        # train_transforms =
+        train_transforms = [transforms.Resize(image_size, interpolation=3)] if image_size < 128 else [
+            transforms.RandomResizedCrop(image_size,
+                                         scale=(0.3, 1.0),
+                                         ratio=(0.7, 1.4),
+                                         interpolation=3)]
+        return transforms.Compose(train_transforms +
+                                  [transforms.RandomApply([
+                                      transforms.ColorJitter(0.4, 0.4, 0.4, 0.2)], p=0.8),
+                                      transforms.RandomHorizontalFlip(),
+                                      transforms.RandomGrayscale(p=0.25),
+                                      transforms.ToTensor(),
+                                      transforms.Normalize(mean=mean, std=std)
+                                  ])
     else:
-        return transforms.Compose([
-            transforms.Resize((image_size[0] + 16, image_size[1] + 16), interpolation=3),
-            transforms.CenterCrop(image_size),
+        test_transforms = [transforms.Resize(image_size, interpolation=3)] if image_size < 128 else [
+            transforms.Resize(image_size + 16, interpolation=3),
+            transforms.CenterCrop(image_size)]
+        return transforms.Compose(test_transforms + [
             transforms.ToTensor(),
             transforms.Normalize(mean=mean, std=std)
         ])
@@ -39,8 +45,8 @@ def get_transform(image_size, mean, std, mode='train'):
 def get_model(model_name='resnet18'):
     try:
         model = models.__dict__[model_name]
-        model_q = model()
-        model_k = model()
+        model_q = model(pretrained=None)
+        model_k = model(pretrained=None)
 
         def forward(self, input):
             x = self.features(input)
@@ -138,17 +144,17 @@ if __name__ == '__main__':
     # normalize = transforms.Normalize(mean=mean, std=std)
 
     train_transform = get_transform(image_size, mean, std, mode='train')
-
+    # datasets.mnist.MNIST
     train_dataset = custom_dataset(datasets.cifar.CIFAR10)(root='./', train=True, transform=train_transform,
                                                            download=True)
     print(len(train_dataset))
-    train_dataloader = DataLoader(train_dataset, batch_size=config.BATCH_SIZE, shuffle=True, num_workers=4,
-                                  pin_memory=False, drop_last=True)
+    train_dataloader = DataLoader(train_dataset, batch_size=config.BATCH_SIZE, shuffle=True, num_workers=0,
+                                  pin_memory=False, drop_last=True)  # drop the last batch due to irregular size
 
-    model_q, model_k = get_model('resnet18')
+    model_q, model_k = get_model(config.MODEL)
 
-    optimizer = torch.optim.SGD(model_q.parameters(), lr=1e-3, momentum=0.9, weight_decay=1e-4)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[30, 60], gamma=0.1)
+    optimizer = torch.optim.SGD(model_q.parameters(), lr=0.03, momentum=0.9, weight_decay=1e-5)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[20, 40], gamma=0.1)
 
     # copy parameters from model_q to model_k
     momentum_update(model_q, model_k, 0)
@@ -157,7 +163,37 @@ if __name__ == '__main__':
 
     torch.backends.cudnn.benchmark = True
     queue = None
-    for epochs in range(0, 90):
+    start_epoch = 0
+    min_loss = float('inf')
+    # load model from file
+    if config.RESUME and os.path.isfile(config.FILE_PATH):
+        print(f'loading model from {config.FILE_PATH}')
+        checkpoint = torch.load(config.FILE_PATH)
+        # config.__dict__.update(checkpoint['config'])
+        model_q.module.load_state_dict(checkpoint['model_q'])
+        model_k.module.load_state_dict(checkpoint['model_k'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        scheduler.load_state_dict(checkpoint['scheduler'])
+        start_epoch = checkpoint['epoch']
+        min_loss = checkpoint['min_loss']
+        print(f'loaded model from {config.FILE_PATH}')
+
+    for epoch in range(start_epoch, 90):
         ret, queue = train(train_dataloader, model_q, model_k, queue, optimizer, config.DEVICE)
         ret_str = ' - '.join([f'{k}:{v:.4f}' for k, v in ret.items()])
-        print(f'epoch:{epochs} {ret_str}')
+        print(f'epoch:{epoch} {ret_str}')
+        scheduler.step()
+        # print(type(config))
+        if ret['loss'] < min_loss:
+            min_loss = ret['loss']
+            state = {
+                # 'config': config.__dict__,
+                'model_q': model_q.module.state_dict(),
+                'model_k': model_k.module.state_dict(),
+                'optimizer': optimizer.state_dict(),
+                'scheduler': scheduler.state_dict(),
+                'epoch': epoch,
+                'min_loss': min_loss
+            }
+            print(f'save to {config.FILE_PATH}')
+            torch.save(state, config.FILE_PATH)

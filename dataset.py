@@ -25,7 +25,6 @@ def custom_dataset(base_dataset):
 
     return CustomDataSet
 
-
 # import torchvision.models as models
 #
 # print(type(models.__dict__['resnet18']))
