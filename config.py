@@ -1,10 +1,11 @@
-BATCH_SIZE = 256
+BATCH_SIZE = 128
 import torch
 
 GPU_ID = 0
 DEVICE = torch.device(f'cuda:{GPU_ID}')
-QUEUE_LENGTH = 8192
+QUEUE_LENGTH = 4096
 
 FILE_PATH = './models/best_model'
 MODEL = 'resnet18'
 RESUME = None
+ALL_EPOCHS = 60

@@ -9,6 +9,7 @@ from torch.nn import functional as F
 import types
 from utils import AverageMeter, get_shuffle_idx
 import os
+from network import CustomNetwork
 
 
 # torch.nn.BatchNorm1d
@@ -19,7 +20,11 @@ def parse_option():
 def get_transform(image_size, mean, std, mode='train'):
     if mode == 'train':
         # train_transforms =
-        train_transforms = [transforms.Resize(image_size, interpolation=3)] if image_size < 128 else [
+        train_transforms = [
+            transforms.RandomResizedCrop(image_size,
+                                         scale=(0.9, 1.1),
+                                         ratio=(0.9, 1.1),
+                                         interpolation=3)] if image_size < 128 else [
             transforms.RandomResizedCrop(image_size,
                                          scale=(0.3, 1.0),
                                          ratio=(0.7, 1.4),
@@ -45,6 +50,7 @@ def get_transform(image_size, mean, std, mode='train'):
 def get_model(model_name='resnet18'):
     try:
         model = models.__dict__[model_name]
+        # model = CustomNetwork
         model_q = model(pretrained=None)
         model_k = model(pretrained=None)
 
@@ -94,6 +100,7 @@ def train(train_dataloader, model_q, model_k, queue, optimizer, device, t=0.07):
     model_q.train()
     model_k.train()
     losses = AverageMeter()
+    pred_meter = AverageMeter()
     for i, (img_q, img_k, _) in enumerate(tqdm(train_dataloader)):
         if queue is not None and queue.shape[0] == config.QUEUE_LENGTH:
             img_q, img_k = img_q.to(device), img_k.to(device)
@@ -106,15 +113,17 @@ def train(train_dataloader, model_q, model_k, queue, optimizer, device, t=0.07):
             k = k[reverse_idx].detach()  # reverse and no graident to key
 
             N, C = q.shape
-            K = config.QUEUE_LENGTH
+            # K = config.QUEUE_LENGTH
 
             l_pos = torch.bmm(q.view(N, 1, C), k.view(N, C, 1)).view(N, 1)  # positive logit N x 1
-            l_neg = torch.mm(q.view(N, C), queue.view(C, K))  # negative logit N x C
+            l_neg = torch.mm(q.view(N, C), queue.transpose(0, 1))  # negative logit N x K
             labels = torch.zeros(N, dtype=torch.long).to(device)  # positives are the 0-th
-            logits = torch.cat([l_pos, l_neg], dim=1)
-
-            loss = criterion(logits / t, labels)
+            logits = torch.cat([l_pos, l_neg], dim=1) / t
+            # print(logits[0])
+            pred = logits[:, 0].mean()
+            loss = criterion(logits, labels)
             losses.update(loss.item(), N)
+            pred_meter.update(pred.item(), N)
 
             # update model_q
             optimizer.zero_grad()
@@ -125,14 +134,17 @@ def train(train_dataloader, model_q, model_k, queue, optimizer, device, t=0.07):
             momentum_update(model_q, model_k, 0.999)
         else:
             img_k = img_k.to(device)
-            k = model_k(img_k)
-            k.detach()
+            shuffle_idx, reverse_idx = get_shuffle_idx(config.BATCH_SIZE, device)
+            img_k = img_k[shuffle_idx]
+            k = model_k(img_k)  # N x C
+            k = k[reverse_idx].detach()  # reverse and no graident to key
 
         # update dictionary
         queue = enqueue(queue, k) if queue is not None else k
         queue = dequeue(queue)
     return {
-               'loss': losses.avg
+               'loss': losses.avg,
+               'pred': pred_meter.avg
            }, queue
 
 
@@ -154,7 +166,7 @@ if __name__ == '__main__':
     model_q, model_k = get_model(config.MODEL)
 
     optimizer = torch.optim.SGD(model_q.parameters(), lr=0.03, momentum=0.9, weight_decay=1e-5)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[20, 40], gamma=0.1)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[40, 50], gamma=0.1)
 
     # copy parameters from model_q to model_k
     momentum_update(model_q, model_k, 0)
@@ -178,7 +190,7 @@ if __name__ == '__main__':
         min_loss = checkpoint['min_loss']
         print(f'loaded model from {config.FILE_PATH}')
 
-    for epoch in range(start_epoch, 90):
+    for epoch in range(start_epoch, config.ALL_EPOCHS):
         ret, queue = train(train_dataloader, model_q, model_k, queue, optimizer, config.DEVICE)
         ret_str = ' - '.join([f'{k}:{v:.4f}' for k, v in ret.items()])
         print(f'epoch:{epoch} {ret_str}')
