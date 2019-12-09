@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 import torch
 from tqdm import tqdm
-from network import Net
+from wideresnet import WideResNet
 from torch.nn import functional as F
 import types
 import config
@@ -19,7 +19,7 @@ def random_int(n=100):
 
 
 def get_model():
-    model = Net
+    model = WideResNet
     model_q = model(pretrained=None)
 
     def forward(self, input):
