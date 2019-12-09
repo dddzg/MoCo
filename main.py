@@ -9,47 +9,18 @@ from torch.nn import functional as F
 import types
 from utils import AverageMeter, get_shuffle_idx
 import os
-from network import CustomNetwork
-
+from network import CustomNetwork, Net
+from utils import get_transform
+from wideresnet import WideResNet
 
 # torch.nn.BatchNorm1d
 def parse_option():
     return None
 
 
-def get_transform(image_size, mean, std, mode='train'):
-    if mode == 'train':
-        # train_transforms =
-        train_transforms = [
-            transforms.RandomResizedCrop(image_size,
-                                         scale=(0.9, 1.1),
-                                         ratio=(0.9, 1.1),
-                                         interpolation=3)] if image_size < 128 else [
-            transforms.RandomResizedCrop(image_size,
-                                         scale=(0.3, 1.0),
-                                         ratio=(0.7, 1.4),
-                                         interpolation=3)]
-        return transforms.Compose(train_transforms +
-                                  [transforms.RandomApply([
-                                      transforms.ColorJitter(0.4, 0.4, 0.4, 0.2)], p=0.8),
-                                      transforms.RandomHorizontalFlip(),
-                                      transforms.RandomGrayscale(p=0.25),
-                                      transforms.ToTensor(),
-                                      transforms.Normalize(mean=mean, std=std)
-                                  ])
-    else:
-        test_transforms = [transforms.Resize(image_size, interpolation=3)] if image_size < 128 else [
-            transforms.Resize(image_size + 16, interpolation=3),
-            transforms.CenterCrop(image_size)]
-        return transforms.Compose(test_transforms + [
-            transforms.ToTensor(),
-            transforms.Normalize(mean=mean, std=std)
-        ])
-
-
 def get_model(model_name='resnet18'):
     try:
-        model = models.__dict__[model_name]
+        model = WideResNet
         # model = CustomNetwork
         model_q = model(pretrained=None)
         model_k = model(pretrained=None)
@@ -150,12 +121,15 @@ def train(train_dataloader, model_q, model_k, queue, optimizer, device, t=0.07):
 
 if __name__ == '__main__':
     args = parse_option()
-    image_size = 64
+    image_size = 32
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
+    # image_size = 28
+    # mean = [0.1307, ]
+    # std = [0.3081, ]
     # normalize = transforms.Normalize(mean=mean, std=std)
 
-    train_transform = get_transform(image_size, mean, std, mode='train')
+    train_transform = get_transform(image_size, mean=mean, std=std, mode='train')
     # datasets.mnist.MNIST
     train_dataset = custom_dataset(datasets.cifar.CIFAR10)(root='./', train=True, transform=train_transform,
                                                            download=True)

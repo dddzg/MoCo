@@ -2,7 +2,8 @@ from PIL import Image
 
 
 def custom_dataset(base_dataset):
-    name: str = base_dataset.__class__.__name__
+    # name: str = base_dataset.__class__.__name__
+    # print(name)
 
     class CustomDataSet(base_dataset):
         def __init__(self, *args, **kwargs):
@@ -10,10 +11,11 @@ def custom_dataset(base_dataset):
 
         def __getitem__(self, index):
             img, target = self.data[index], int(self.targets[index])
-            if name.startswith('MNIST'):
-                img = Image.fromarray(img.numpy(), mode='L')
-            else:
-                img = Image.fromarray(img)
+            # if name.startswith('MNIST'):
+            #     img = Image.fromarray(img.numpy(), mode='L')
+            # else:
+            img = Image.fromarray(img)
+            # img = Image.fromarray(img.numpy(), mode='L')
 
             ret_img_q = self.transform(img)
             ret_img_k = self.transform(img)
