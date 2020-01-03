@@ -43,8 +43,8 @@ def get_model():
 if __name__ == '__main__':
     label_list = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
     image_size = 32
-    mean = [0.485, 0.456, 0.406]
-    std = [0.229, 0.224, 0.225]
+    cifar10_mean = (0.4914, 0.4822, 0.4465)  # equals np.mean(train_set.train_data, axis=(0,1,2))/255
+    cifar10_std = (0.2471, 0.2435, 0.2616)  # equals np.std(train_set.train_data, axis=(0,1,2))/255
     test_transform = get_transform(image_size, mode='test', to_tensor=False)
     dataset = datasets.cifar.CIFAR10(root='./', train=True, transform=test_transform,
                                      download=True)
@@ -53,7 +53,7 @@ if __name__ == '__main__':
     model_q = get_model()
     transform_to_tensor = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize(mean=mean, std=std)
+        transforms.Normalize(mean=cifar10_mean, std=cifar10_std)
     ])
     if os.path.exists('./feature.pkl'):
         with open('./feature.pkl', 'rb') as f:

@@ -13,6 +13,7 @@ from network import CustomNetwork, Net
 from utils import get_transform
 from wideresnet import WideResNet
 
+
 # torch.nn.BatchNorm1d
 def parse_option():
     return None
@@ -20,7 +21,13 @@ def parse_option():
 
 def get_model(model_name='resnet18'):
     try:
-        model = WideResNet
+        if model_name in models.__dict__:
+            model = models.__dict__[model_name]
+        elif model_name == 'wideresnet':
+            model = WideResNet
+        else:
+            KeyError(f'There is no model named {model_name}')
+
         # model = CustomNetwork
         model_q = model(pretrained=None)
         model_k = model(pretrained=None)
@@ -122,14 +129,14 @@ def train(train_dataloader, model_q, model_k, queue, optimizer, device, t=0.07):
 if __name__ == '__main__':
     args = parse_option()
     image_size = 32
-    mean = [0.485, 0.456, 0.406]
-    std = [0.229, 0.224, 0.225]
+    cifar10_mean = (0.4914, 0.4822, 0.4465)  # equals np.mean(train_set.train_data, axis=(0,1,2))/255
+    cifar10_std = (0.2471, 0.2435, 0.2616)  # equals np.std(train_set.train_data, axis=(0,1,2))/255
     # image_size = 28
     # mean = [0.1307, ]
     # std = [0.3081, ]
     # normalize = transforms.Normalize(mean=mean, std=std)
 
-    train_transform = get_transform(image_size, mean=mean, std=std, mode='train')
+    train_transform = get_transform(image_size, mean=cifar10_mean, std=cifar10_std, mode='train')
     # datasets.mnist.MNIST
     train_dataset = custom_dataset(datasets.cifar.CIFAR10)(root='./', train=True, transform=train_transform,
                                                            download=True)
@@ -140,7 +147,7 @@ if __name__ == '__main__':
     model_q, model_k = get_model(config.MODEL)
 
     optimizer = torch.optim.SGD(model_q.parameters(), lr=0.03, momentum=0.9, weight_decay=1e-5)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[40, 50], gamma=0.1)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[80, 120], gamma=0.1)
 
     # copy parameters from model_q to model_k
     momentum_update(model_q, model_k, 0)

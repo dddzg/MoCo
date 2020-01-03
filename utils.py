@@ -1,4 +1,5 @@
 from torchvision import transforms, datasets
+from autoaugment import CIFAR10Policy, ImageNetPolicy, RandomPolicy
 
 
 class AverageMeter(object):
@@ -40,26 +41,15 @@ def get_transform(image_size, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.2
     if mode == 'train':
         # train_transforms =
         train_transforms = [
-            transforms.RandomResizedCrop(image_size,
-                                         scale=(0.8, 1.2),
-                                         ratio=(0.8, 1.2),
-                                         interpolation=3)] if image_size < 128 else [
-            transforms.RandomResizedCrop(image_size,
-                                         scale=(0.3, 1.0),
-                                         ratio=(0.7, 1.4),
-                                         interpolation=3)]
+            transforms.RandomCrop(image_size, padding=4, fill=128),
+            # fill parameter needs torchvision installed from source
+            transforms.RandomHorizontalFlip(),
+            RandomPolicy()] if image_size < 128 else [transforms.RandomResizedCrop(image_size),
+                                                      transforms.RandomHorizontalFlip(), RandomPolicy()]
 
-        return transforms.Compose(train_transforms +
-                                  [
-                                      transforms.RandomApply([
-                                          transforms.ColorJitter(0.4, 0.4, 0.4, 0.2)], p=0.8),
-                                      transforms.RandomHorizontalFlip(),
-                                      transforms.RandomGrayscale(p=0.25),
-                                      # transforms.ToTensor(),
-                                      # transforms.Normalize(mean=mean, std=std)
-                                  ] + transform_to_tensor)
+        return transforms.Compose(train_transforms + transform_to_tensor)
     else:
-        test_transforms = [transforms.Resize(image_size, interpolation=3)] if image_size < 128 else [
+        test_transforms = [] if image_size < 128 else [
             transforms.Resize(image_size + 16, interpolation=3),
             transforms.CenterCrop(image_size)]
         return transforms.Compose(test_transforms + transform_to_tensor)
