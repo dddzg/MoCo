@@ -55,6 +55,7 @@ if __name__ == '__main__':
         transforms.ToTensor(),
         transforms.Normalize(mean=cifar10_mean, std=cifar10_std)
     ])
+    model_q.eval()
     if os.path.exists('./feature.pkl'):
         with open('./feature.pkl', 'rb') as f:
             features = pickle.load(f)

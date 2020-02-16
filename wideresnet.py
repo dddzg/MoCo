@@ -71,7 +71,8 @@ class WideResNet(nn.Module):
         self.relu = nn.LeakyReLU(negative_slope=0.1, inplace=True)
         # self.fc = nn.Linear(nChannels[3], num_classes)
         self.nChannels = nChannels[3]
-
+        self.mlp = nn.Sequential(nn.Linear(self.nChannels, self.nChannels), nn.ReLU(inplace=True),
+                                 nn.Linear(self.nChannels, self.nChannels))
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
@@ -91,6 +92,13 @@ class WideResNet(nn.Module):
         out = self.relu(self.bn1(out))
         # print(out.shape)
         return out
+
+    # def contrastive(self, x):
+    #     x = self.features(input)
+    #     x = F.adaptive_avg_pool2d(x, (1, 1))
+    #     x = x.view(x.size(0), -1)
+    #     out = self.mlp(x)
+    #     return out
 
     def forward(self, x):
         out = self.features(x)

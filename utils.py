@@ -53,3 +53,16 @@ def get_transform(image_size, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.2
             transforms.Resize(image_size + 16, interpolation=3),
             transforms.CenterCrop(image_size)]
         return transforms.Compose(test_transforms + transform_to_tensor)
+
+
+def dataset_info(name='image_net'):
+    """
+    :param name: name of dataset
+    :return: image_size,mean,std
+    ####### mean equals to np.mean(train_set.train_data, axis=(0,1,2))/255
+    ####### std equals to np.std(train_set.train_data, axis=(0,1,2))/255
+    """
+    if name == 'cifar':
+        return 32, (0.4914, 0.4822, 0.4465), (0.2471, 0.2435, 0.2616)
+    if name == 'image_net':
+        return 224, (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)

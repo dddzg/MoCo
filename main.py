@@ -10,7 +10,7 @@ import types
 from utils import AverageMeter, get_shuffle_idx
 import os
 from network import CustomNetwork, Net
-from utils import get_transform
+from utils import get_transform, dataset_info
 from wideresnet import WideResNet
 
 
@@ -36,6 +36,7 @@ def get_model(model_name='resnet18'):
             x = self.features(input)
             x = F.adaptive_avg_pool2d(x, (1, 1))
             x = x.view(x.size(0), -1)
+            x = self.mlp(x)
             x = F.normalize(x)  # l2 normalize by default
             return x
 
@@ -128,15 +129,13 @@ def train(train_dataloader, model_q, model_k, queue, optimizer, device, t=0.07):
 
 if __name__ == '__main__':
     args = parse_option()
-    image_size = 32
-    cifar10_mean = (0.4914, 0.4822, 0.4465)  # equals np.mean(train_set.train_data, axis=(0,1,2))/255
-    cifar10_std = (0.2471, 0.2435, 0.2616)  # equals np.std(train_set.train_data, axis=(0,1,2))/255
+    image_size, mean, std = dataset_info(name='cifar')
     # image_size = 28
     # mean = [0.1307, ]
     # std = [0.3081, ]
     # normalize = transforms.Normalize(mean=mean, std=std)
 
-    train_transform = get_transform(image_size, mean=cifar10_mean, std=cifar10_std, mode='train')
+    train_transform = get_transform(image_size, mean=mean, std=std, mode='train')
     # datasets.mnist.MNIST
     train_dataset = custom_dataset(datasets.cifar.CIFAR10)(root='./', train=True, transform=train_transform,
                                                            download=True)
@@ -146,8 +145,9 @@ if __name__ == '__main__':
 
     model_q, model_k = get_model(config.MODEL)
 
-    optimizer = torch.optim.SGD(model_q.parameters(), lr=0.03, momentum=0.9, weight_decay=1e-5)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[80, 120], gamma=0.1)
+    optimizer = torch.optim.SGD(model_q.parameters(), lr=0.02, momentum=0.9, nesterov=True, weight_decay=1e-5)
+    per = config.ALL_EPOCHS // 6
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[per * 2, per * 4, per * 5], gamma=0.1)
 
     # copy parameters from model_q to model_k
     momentum_update(model_q, model_k, 0)
