@@ -1,5 +1,5 @@
 from torchvision import transforms, datasets
-from autoaugment import CIFAR10Policy, ImageNetPolicy, RandomPolicy
+from autoaugment import RandAugment
 
 
 class AverageMeter(object):
@@ -41,11 +41,10 @@ def get_transform(image_size, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.2
     if mode == 'train':
         # train_transforms =
         train_transforms = [
-            transforms.RandomCrop(image_size, padding=4, fill=128),
-            # fill parameter needs torchvision installed from source
             transforms.RandomHorizontalFlip(),
-            RandomPolicy()] if image_size < 128 else [transforms.RandomResizedCrop(image_size),
-                                                      transforms.RandomHorizontalFlip(), RandomPolicy()]
+            transforms.RandomCrop(image_size, padding=int(image_size * 0.125), padding_mode='reflect'),
+            RandAugment()] if image_size < 128 else [transforms.RandomResizedCrop(image_size),
+                                                      transforms.RandomHorizontalFlip(), RandAugment()]
 
         return transforms.Compose(train_transforms + transform_to_tensor)
     else:
