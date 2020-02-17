@@ -26,6 +26,7 @@ def get_model():
         x = self.features(input)
         x = F.adaptive_avg_pool2d(x, (1, 1))
         x = x.view(x.size(0), -1)
+        x = self.mlp(x)
         x = F.normalize(x)  # l2 normalize by default
         return x
 
