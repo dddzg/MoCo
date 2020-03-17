@@ -9,7 +9,6 @@ from torch.nn import functional as F
 import types
 from utils import AverageMeter, get_shuffle_idx
 import os
-from network import CustomNetwork, Net
 from utils import get_transform, dataset_info
 from wideresnet import WideResNet
 
